@@ -1,0 +1,190 @@
+---
+title: "Syrian Refugee Settlement Clinic Locations"
+author: "Posted on September 30, 2014 by jlebeau in R bloggers"
+date: "1/10/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Localización de hospitales para refugiados de Siria
+
+Anteriormente publiqué sobre la ubicación de los asentamientos de refugiados y cómo habían aumentado en densidad con el tiempo y en número. Dado que muchas ONG y organizaciones sin fines de lucro trabajan en el área, están brindando la asistencia que tanto necesitan a las personas que viven alrededor del área de Zahle. Quería volver a mirar el área debido al aliento de la crisis con Siria y la posible ubicación a largo plazo de sirios en el Líbano. En estos campamentos se han establecido servicios como clínicas, que pueden haber tenido en cuenta o no la capacidad de atender a los refugiados (estas consideraciones de planificación pueden no ser posibles en estas circunstancias) en ubicaciones óptimas. Para la planificación a largo plazo, estas son consideraciones más importantes por parte de quienquiera que se convierta en el órgano de gobierno de estos asentamientos.
+
+A continuación se muestra un mapa de las ubicaciones de los asentamientos en el distrito de Zahle proporcionado por el Portal de datos de Siria de la ONU. Cada punto representa varias tiendas de campaña en el asentamiento.
+
+
+![Campamentos Sirios](f1.png)
+
+La consideración general de la ubicación de la clínica se basará en el nivel de servicio por persona. Con base en un criterio general de tener 1 clínica por cada 15,000-20,000 personas, podemos asignar alrededor de 4 clínicas al área. El (los) método (s) para determinar estas ubicaciones
+utilizó el método kmeans para determinar el punto medio en un grupo y un algoritmo de análisis de ubicación que considera los pesos de los puntos para determinar una ubicación (agradecimiento especial a los autores de orloca, kmeans y al siempre útil ggplot2
+paquetes en R).
+
+Para estos fines, la latitud y la longitud de las ubicaciones de los asentamientos de tiendas de campaña son las más útiles. Aquí los asentamientos o puntos están coloreados según la población de cada emplazamiento.
+
+
+## Detalles de la operación
+
+Como puede ver, algunos asentamientos albergan a muchas más personas que otros y el asentamiento promedio es de aproximadamente 187 personas (nuevamente estamos hablando de muchas tiendas de campaña por asentamiento). Dado que la distribución de personas en los asentamientos no es igual, consideramos el "peso" (población del asentamiento) para cada punto al determinar la ubicación de una clínica.
+
+## Consideraciones Técnicas y Simplificación
+
+Las clínicas están ubicadas más cerca de los asentamientos con mayor número de habitantes. En el área central de Zahle, estas ubicaciones están aproximadamente en el medio desde el punto de vista de Latitude. Otras ubicaciones son quizás menos intuitivas si la población de
+no se consideraron los asentamientos. Obviamente, con más clínicas estos puntos cambiarían, pero esto se considera un nivel de servicio mínimo.
+
+Usar solo este método para determinar la ubicación de una clínica sería problemático desde el punto de vista de lo que realmente está en el suelo con referencia al acceso a la calle u otras contingencias locales. La planificación de instalaciones médicas es más un ejercicio para consideraciones de planificación a largo plazo que la medicina de emergencia o de socorro, que puede tener objetivos a más corto plazo, como brindar atención. Comenzar teniendo en cuenta el número de personas que reciben servicios y su ubicación son consideraciones importantes, ya que estos campamentos se convierten en obligaciones potencialmente a más largo plazo.
+
+## Código en R
+
+El Código original puede ser recuperado de:
+
+[Sirian Clinica Desplazados](https://github.com/justlebeau/Blog-Code/blob/master/ClinicLoc)
+
+
+## Carga de bibliotecas (library) necesarias
+
+```{r}
+#library(XLConnect) usaremos algo más moderno
+library(readr)
+library(readxl)
+library(stats)
+library(ggplot2)
+library(orloca)
+library(leaflet)
+library(leaflet.extras)
+```
+
+
+## Obtención de Datos Oficiales
+
+```{r}
+##Get file from UNHCR Lebanon Data Portal
+#url<-"https://www.dropbox.com/sh/6gw6c971791i7za/AAAHU64Hu6-qJHZEZBWdeKPLa/2.%20Mapping%20and%20P-codes/List%20of%20Informal%20Settlements_2014_09_01.xlsx?dl=1"
+#download.file(url,destfile="List of Informal Settlements_2014_09_01.xlsx",mode="wb")
+##Read .xlsx file
+getwd()
+```
+
+Dado que el portal actualiza constantemente los datos hemos utilizado una copia del archivo alojada en themys.
+
+```{r}
+##Get file from UNHCR Lebanon Data Portal
+#url<-"https://themys.sid.uncu.edu.ar/rpalma/R-cran/Siria/IAMP-23_ListofInformalSettlements_29_FEB_2016.xlsx?dl=1"
+#download.file(url,destfile="List of Informal Settlements_2014_09_01.xlsx",mode="wb")
+##Read .xlsx file
+#library(readxl)
+#settlements  <- 
+#read_excel("~/AAA_Datos/2021/Posgrado/R-Cran/Facility #Location/Siria/List of Informal Settlements_2014_09_01.xlsx")
+
+ 
+library(readr)
+
+tents <- read_delim("tents2.csv", ";", escape_double = FALSE, 
+    col_types = cols(Latitude = col_number(), 
+        Longitude = col_number(), `Number of tents` = col_number(), 
+        `Number of Individuals` = col_number(), 
+        `Number of Latrines` = col_number(), 
+        `Number of 1000 Litre Tanks` = col_number()), 
+    trim_ws = TRUE)
+
+
+```
+
+
+Filtrar solamente emplazamientos del distrito Zahle
+
+```{r}
+##Get only Zahle District Settlements
+zahle<-tents[which(tents$District=="Zahle"),]
+##Kmeans based on latitude of settlement, k=4
+kmeanslat<-kmeans(zahle$Longitude,4)
+```
+
+Agregar grupos al dataset
+
+```{r}
+##Add to data frame
+zahle$groups<-kmeanslat$cluster
+##Subset data based on Groups
+zahle1<-zahle[which(zahle$groups==1),]
+zahle2<-zahle[which(zahle$groups==2),]
+zahle3<-zahle[which(zahle$groups==3),]
+zahle4<-zahle[which(zahle$groups==4),]
+```
+
+
+Agregar emplazamiento de clínicas en el centroide de cada cluster
+
+```{r}
+##Make central points based on settlement population/weight and solve optimzation problem
+loca1<-loca.p(x=(zahle1$Longitude),y=(zahle1$Latitude),w=(zahle1$`Number of Individuals`))
+point1<-zsummin(loca1)
+##Group 2 did not converge so we will settle with kmeans with k=1
+group2lat<-kmeans(zahle2$Latitude,1)
+group2lon<-kmeans(zahle2$Longitude,1)
+point2<-data.frame(group2lon$centers,group2lat$centers)
+##Continue with optimization based on weights of other groups
+loca3<-loca.p(x=(zahle3$Longitude),y=(zahle3$Latitude),w=zahle3$Updated.number.of.Individual)
+point3<-zsummin(loca3,max.iter=200)
+loca4<-loca.p(x=(zahle4$Longitude),y=(zahle4$Latitude),w=zahle4$Updated.number.of.Individual)
+point4<-(zsummin(loca4,max.iter=100000))
+##Transpose and Make data frame for all points
+colnames(point2)<-c("V1","V2")
+points<-data.frame(do.call(rbind,list(point1,point2,point3,point4)))
+colnames(points)<-c("Lon","Lat")
+```
+
+
+
+## Gráfico sobre mapa
+
+```{r}
+##Map on ggplot/ggmap
+ggplot(aes(Longitude,Latitude,color=groups),data=zahle)+geom_point()+geom_point(aes(Lon,Lat),color="red",size=8,alpha=.5,data=points)
+```
+
+## Mapa Georeferenciado
+
+Representaremos interativamente sólo las 20 primeras tiendas.
+Por cada una de ellas en el pop up con el mouse se muestran la cantidad de tiendas.
+Al hacer click muestra la cantidad de personas.
+
+
+```{r}
+refugiados <- data.frame(lat=tents$Latitude, long=tents$Longitude, mag=tents$`Number of Individuals`, tiendas=tents$`Number of tents` ,stringsAsFactors=FALSE)
+
+leaflet(data = refugiados[1:20, ]) %>% addTiles() %>%
+  addMarkers(~long, ~lat, popup = ~as.character(mag), label = ~as.character(tiendas))
+  
+```
+
+## Mapa sobrecargado 
+
+Como podemos ver con sólo 80 de los casi 1000 tiendas re refugiados el mapa luce saturado. Veremos más adelante como mejorar esto con la técnica de clusters.
+
+```{r}
+refugiados <- data.frame(lat=tents$Latitude, long=tents$Longitude, mag=tents$`Number of Individuals`, tiendas=tents$`Number of tents` ,stringsAsFactors=FALSE)
+
+leaflet(data = refugiados[300:720, ]) %>% addTiles() %>%
+  addMarkers(~long, ~lat, popup = ~as.character(mag), label = ~as.character(tiendas))
+  
+```
+
+
+
+## Mapa con datos clusterizados
+
+
+```{r}
+refugiados <- data.frame(lat=tents$Latitude, long=tents$Longitude, mag=tents$`Number of Individuals`, tiendas=tents$`Number of tents` ,stringsAsFactors=FALSE)
+
+
+leaflet(data = refugiados[300:750, ]) %>%  addTiles() %>% addMarkers(
+  clusterOptions = markerClusterOptions())
+
+```
+
