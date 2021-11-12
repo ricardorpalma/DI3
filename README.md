@@ -2,6 +2,8 @@
 # Doctorado Inter Institucional en Red
 # de Ingeniería Industrial
 #
+![](https://themys.sid.uncu.edu.ar/Di3/Doctorandos/_papelera/Di3_escudos.png)
+
 Universidades que participan del doctorado
 Universidad | Sitio | Contacto | Materiales
 ------------|-------|----------| ----------
